@@ -16,8 +16,8 @@ func Load() *Config {
 	cfg := &Config{
 		Port:        getEnv("PORT", "8080"),
 		DatabaseURL: getEnv("DATABASE_URL", ""),
-		RedisURL:    getEnv("REDIS_URL", ""),
-		StripeKey:   getEnv("STRIPE_KEY", ""),
+		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379"),
+		StripeKey:   getEnv("STRIPE_KEY", "sk_test_placeholder"),
 	}
 
 	return cfg
