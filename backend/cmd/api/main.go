@@ -3,12 +3,16 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"ai-api-saas/pkg/config"
 )
 
 func main() {
+	cfg := config.Load()
+
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "API running")
+		fmt.Fprintln(w, "API running on port", cfg.Port)
 	})
 
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":"+cfg.Port, nil)
 }
