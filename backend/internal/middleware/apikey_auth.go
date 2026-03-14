@@ -2,16 +2,14 @@ package middleware
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"net/http"
 	"strings"
 )
 
 type contextKey string
 
-const UserIDKey contextKey = "user_id"
+const APIKeyIDKey contextKey = "api_key_id"
 
 type APIKeyAuth struct {
 	db *sql.DB
@@ -21,12 +19,8 @@ func NewAPIKeyAuth(db *sql.DB) *APIKeyAuth {
 	return &APIKeyAuth{db: db}
 }
 
-func hashKey(key string) string {
-	hash := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(hash[:])
-}
-
 func (a *APIKeyAuth) Middleware(next http.Handler) http.Handler {
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		authHeader := r.Header.Get("Authorization")
@@ -45,25 +39,19 @@ func (a *APIKeyAuth) Middleware(next http.Handler) http.Handler {
 
 		apiKey := parts[1]
 
-		// hash incoming key
-		hashedKey := hashKey(apiKey)
-
-		var userID string
+		var apiKeyID string
 
 		err := a.db.QueryRow(
-			`SELECT user_id
-			 FROM api_keys
-			 WHERE key_hash = $1
-			 AND revoked = false`,
-			hashedKey,
-		).Scan(&userID)
+			"SELECT id FROM api_keys WHERE key_hash = $1",
+			apiKey,
+		).Scan(&apiKeyID)
 
 		if err != nil {
 			http.Error(w, "invalid api key", http.StatusUnauthorized)
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), UserIDKey, userID)
+		ctx := context.WithValue(r.Context(), APIKeyIDKey, apiKeyID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

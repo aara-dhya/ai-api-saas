@@ -9,6 +9,7 @@ import (
 	"ai-api-saas/internal/ai"
 	"ai-api-saas/internal/apikey"
 	"ai-api-saas/internal/middleware"
+	"ai-api-saas/internal/usage"
 	"ai-api-saas/pkg/config"
 	"ai-api-saas/pkg/database"
 )
@@ -26,6 +27,12 @@ func main() {
 
 	auth := middleware.NewAPIKeyAuth(db)
 
+	// usage service
+	usageService := usage.NewService(db)
+
+	// AI handler
+	aiHandler := ai.NewHandler(cfg.GroqAPIKey, usageService)
+
 	// health check
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "API running on port", cfg.Port)
@@ -33,9 +40,6 @@ func main() {
 
 	// public route
 	http.HandleFunc("/api/keys", apiKeyHandler.CreateAPIKey)
-
-	// AI handler
-	aiHandler := ai.NewHandler(cfg.GroqAPIKey)
 
 	// protected route
 	aiRoute := auth.Middleware(http.HandlerFunc(aiHandler.Generate))

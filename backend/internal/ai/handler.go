@@ -4,16 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
+
+	"ai-api-saas/internal/middleware"
+	"ai-api-saas/internal/usage"
 )
 
 type Handler struct {
-	apiKey string
+	apiKey       string
+	usageService *usage.Service
 }
 
-func NewHandler(key string) *Handler {
+func NewHandler(key string, usageService *usage.Service) *Handler {
 	return &Handler{
-		apiKey: key,
+		apiKey:       key,
+		usageService: usageService,
 	}
 }
 
@@ -30,6 +36,13 @@ type Message struct {
 type groqRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
+}
+
+type groqResponse struct {
+	Model string `json:"model"`
+	Usage struct {
+		TotalTokens int `json:"total_tokens"`
+	} `json:"usage"`
 }
 
 func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +105,28 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "failed to read provider response", http.StatusInternalServerError)
 		return
+	}
+
+	// Parse Groq response to extract usage
+	var parsed groqResponse
+	err = json.Unmarshal(responseBody, &parsed)
+	if err != nil {
+		log.Println("failed to parse groq response:", err)
+	}
+
+	// Get API key ID from middleware context
+	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	if ok && parsed.Usage.TotalTokens > 0 {
+
+		err := h.usageService.LogUsage(
+			apiKeyID,
+			parsed.Model,
+			parsed.Usage.TotalTokens,
+		)
+
+		if err != nil {
+			log.Println("failed to log usage:", err)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
