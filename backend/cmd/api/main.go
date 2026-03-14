@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -27,6 +28,8 @@ func main() {
 
 	auth := middleware.NewAPIKeyAuth(db)
 
+	rateLimiter := middleware.NewRateLimiter(10, time.Minute)
+
 	usageService := usage.NewService(db)
 
 	// create provider
@@ -50,7 +53,11 @@ func main() {
 	http.HandleFunc("/api/keys", apiKeyHandler.CreateAPIKey)
 
 	// protected route
-	aiRoute := auth.Middleware(http.HandlerFunc(aiHandler.Generate))
+	aiRoute := auth.Middleware(
+		rateLimiter.Middleware(
+			http.HandlerFunc(aiHandler.Generate),
+		),
+	)
 
 	http.Handle("/ai/generate", aiRoute)
 
