@@ -27,11 +27,19 @@ func main() {
 
 	auth := middleware.NewAPIKeyAuth(db)
 
-	// usage service
 	usageService := usage.NewService(db)
 
-	// AI handler
-	aiHandler := ai.NewHandler(cfg.GroqAPIKey, usageService)
+	// create provider
+	groqProvider := ai.NewGroqProvider(cfg.GroqAPIKey)
+
+	// create router
+	router := ai.NewRouter()
+
+	// register models
+	router.Register("llama-3.1-8b-instant", groqProvider)
+
+	// create handler
+	aiHandler := ai.NewHandler(router, usageService)
 
 	// health check
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
