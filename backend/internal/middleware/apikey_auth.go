@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"net/http"
 	"strings"
 )
@@ -17,6 +19,11 @@ type APIKeyAuth struct {
 
 func NewAPIKeyAuth(db *sql.DB) *APIKeyAuth {
 	return &APIKeyAuth{db: db}
+}
+
+func hashKey(key string) string {
+	hash := sha256.Sum256([]byte(key))
+	return hex.EncodeToString(hash[:])
 }
 
 func (a *APIKeyAuth) Middleware(next http.Handler) http.Handler {
@@ -38,11 +45,17 @@ func (a *APIKeyAuth) Middleware(next http.Handler) http.Handler {
 
 		apiKey := parts[1]
 
+		// hash incoming key
+		hashedKey := hashKey(apiKey)
+
 		var userID string
 
 		err := a.db.QueryRow(
-			"SELECT user_id FROM api_keys WHERE key = $1",
-			apiKey,
+			`SELECT user_id
+			 FROM api_keys
+			 WHERE key_hash = $1
+			 AND revoked = false`,
+			hashedKey,
 		).Scan(&userID)
 
 		if err != nil {

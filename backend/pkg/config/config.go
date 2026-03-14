@@ -10,17 +10,17 @@ type Config struct {
 	DatabaseURL string
 	RedisURL    string
 	StripeKey   string
+	GroqAPIKey  string
 }
 
 func Load() *Config {
-	cfg := &Config{
+	return &Config{
 		Port:        getEnv("PORT", "8080"),
 		DatabaseURL: getEnv("DATABASE_URL", ""),
-		RedisURL:    getEnv("REDIS_URL", "redis://localhost:6379"),
-		StripeKey:   getEnv("STRIPE_KEY", "sk_test_placeholder"),
+		RedisURL:    getEnv("REDIS_URL", ""),
+		StripeKey:   getEnv("STRIPE_KEY", ""),
+		GroqAPIKey:  getEnv("GROQ_API_KEY", ""),
 	}
-
-	return cfg
 }
 
 func getEnv(key string, fallback string) string {

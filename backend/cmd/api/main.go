@@ -6,6 +6,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"ai-api-saas/internal/ai"
 	"ai-api-saas/internal/apikey"
 	"ai-api-saas/internal/middleware"
 	"ai-api-saas/pkg/config"
@@ -20,32 +21,26 @@ func main() {
 
 	db := database.NewPostgres(cfg.DatabaseURL)
 
-	// create service
 	apiKeyService := apikey.NewService(db)
-
-	// create handler
 	apiKeyHandler := apikey.NewHandler(apiKeyService)
 
-	// initialize middleware
 	auth := middleware.NewAPIKeyAuth(db)
 
-	// health endpoint
+	// health check
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "API running on port", cfg.Port)
 	})
 
-	// register API key endpoint (public)
+	// public route
 	http.HandleFunc("/api/keys", apiKeyHandler.CreateAPIKey)
 
-	// protected test endpoint
-	protected := auth.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// AI handler
+	aiHandler := ai.NewHandler(cfg.GroqAPIKey)
 
-		userID := r.Context().Value(middleware.UserIDKey)
+	// protected route
+	aiRoute := auth.Middleware(http.HandlerFunc(aiHandler.Generate))
 
-		fmt.Fprintf(w, "Authenticated user: %s", userID)
-	}))
-
-	http.Handle("/protected", protected)
+	http.Handle("/ai/generate", aiRoute)
 
 	http.ListenAndServe(":"+cfg.Port, nil)
 }
