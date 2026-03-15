@@ -32,6 +32,15 @@ func main() {
 
 	usageService := usage.NewService(db)
 
+	usageHandler := usage.NewHandler(usageService)
+
+	http.Handle(
+		"/api/usage",
+		auth.Middleware(
+			http.HandlerFunc(usageHandler.GetUsage),
+		),
+	)
+
 	quotaService := usage.NewQuotaService(db)
 	quotaMiddleware := middleware.NewQuotaMiddleware(quotaService)
 
