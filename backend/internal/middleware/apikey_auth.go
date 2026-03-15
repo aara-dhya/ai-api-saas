@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"net/http"
 	"strings"
 )
@@ -39,11 +41,14 @@ func (a *APIKeyAuth) Middleware(next http.Handler) http.Handler {
 
 		apiKey := parts[1]
 
+		sum := sha256.Sum256([]byte(apiKey))
+		hashedKey := hex.EncodeToString(sum[:])
+
 		var apiKeyID string
 
 		err := a.db.QueryRow(
-			"SELECT id FROM api_keys WHERE key_hash = $1",
-			apiKey,
+			"SELECT id FROM api_keys WHERE key_hash = $1 AND revoked = false",
+			hashedKey,
 		).Scan(&apiKeyID)
 
 		if err != nil {

@@ -23,37 +23,28 @@ func main() {
 
 	db := database.NewPostgres(cfg.DatabaseURL)
 
+	// services
 	apiKeyService := apikey.NewService(db)
-	apiKeyHandler := apikey.NewHandler(apiKeyService)
-
-	auth := middleware.NewAPIKeyAuth(db)
-
-	rateLimiter := middleware.NewRateLimiter(10, time.Minute)
-
 	usageService := usage.NewService(db)
+	// quotaService := usage.NewQuotaService(db)
 
+	// handlers
+	apiKeyHandler := apikey.NewHandler(apiKeyService)
 	usageHandler := usage.NewHandler(usageService)
 
-	http.Handle(
-		"/api/usage",
-		auth.Middleware(
-			http.HandlerFunc(usageHandler.GetUsage),
-		),
-	)
+	// middleware
+	auth := middleware.NewAPIKeyAuth(db)
+	rateLimiter := middleware.NewRateLimiter(10, time.Minute)
+	quotaMiddleware := middleware.NewQuotaMiddleware()
 
-	quotaService := usage.NewQuotaService(db)
-	quotaMiddleware := middleware.NewQuotaMiddleware(quotaService)
-
-	// create provider
+	// AI provider
 	groqProvider := ai.NewGroqProvider(cfg.GroqAPIKey)
 
-	// create router
+	// AI router
 	router := ai.NewRouter()
-
-	// register models
 	router.Register("llama-3.1-8b-instant", groqProvider)
 
-	// create handler
+	// AI handler
 	aiHandler := ai.NewHandler(router, usageService)
 
 	// health check
@@ -64,7 +55,15 @@ func main() {
 	// public route
 	http.HandleFunc("/api/keys", apiKeyHandler.CreateAPIKey)
 
-	// protected route
+	// usage endpoint (protected)
+	http.Handle(
+		"/api/usage",
+		auth.Middleware(
+			http.HandlerFunc(usageHandler.GetUsage),
+		),
+	)
+
+	// AI generation endpoint (protected)
 	aiRoute := auth.Middleware(
 		rateLimiter.Middleware(
 			quotaMiddleware.Middleware(
@@ -73,7 +72,9 @@ func main() {
 		),
 	)
 
-	http.Handle("/ai/generate", aiRoute)
+	http.Handle("/v1/generate", aiRoute)
+
+	fmt.Println("Server running on port", cfg.Port)
 
 	http.ListenAndServe(":"+cfg.Port, nil)
 }

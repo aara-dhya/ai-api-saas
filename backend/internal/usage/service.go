@@ -14,12 +14,16 @@ func NewService(db *sql.DB) *Service {
 	}
 }
 
-func (s *Service) LogUsage(apiKeyID string, model string, tokens int) error {
+func (s *Service) LogUsage(apiKeyID, model string, tokens int, cost float64) error {
 
-	_, err := s.db.Exec(`
-		INSERT INTO usage_logs (api_key_id, model, tokens_used)
-		VALUES ($1, $2, $3)
-	`, apiKeyID, model, tokens)
+	_, err := s.db.Exec(
+		`INSERT INTO usage_logs (api_key_id, endpoint, tokens_used, cost)
+		 VALUES ($1, $2, $3, $4)`,
+		apiKeyID,
+		model,
+		tokens,
+		cost,
+	)
 
 	return err
 }
