@@ -1,5 +1,7 @@
 package ai
 
+import "errors"
+
 type OpenAIProvider struct {
 	apiKey string
 }
@@ -9,5 +11,5 @@ func NewOpenAIProvider(key string) *OpenAIProvider {
 }
 
 func (o *OpenAIProvider) Generate(req GenerateRequest) (*GenerateResponse, error) {
-	// call OpenAI chat completions
+	return nil, errors.New("openai provider not implemented")
 }
