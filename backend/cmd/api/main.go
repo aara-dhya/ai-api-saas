@@ -32,6 +32,9 @@ func main() {
 
 	usageService := usage.NewService(db)
 
+	quotaService := usage.NewQuotaService(db)
+	quotaMiddleware := middleware.NewQuotaMiddleware(quotaService)
+
 	// create provider
 	groqProvider := ai.NewGroqProvider(cfg.GroqAPIKey)
 
@@ -55,7 +58,9 @@ func main() {
 	// protected route
 	aiRoute := auth.Middleware(
 		rateLimiter.Middleware(
-			http.HandlerFunc(aiHandler.Generate),
+			quotaMiddleware.Middleware(
+				http.HandlerFunc(aiHandler.Generate),
+			),
 		),
 	)
 
