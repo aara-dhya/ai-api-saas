@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 
-	"ai-api-saas/internal/billing"
 	"ai-api-saas/internal/middleware"
 	"ai-api-saas/internal/usage"
 )
@@ -48,8 +47,6 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		Model:  req.Model,
 	})
 
-	cost := billing.CalculateCost(resp.Model, resp.Tokens)
-
 	if err != nil {
 		http.Error(w, "ai provider error", http.StatusInternalServerError)
 		return
@@ -64,7 +61,6 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 			apiKeyID,
 			resp.Model,
 			resp.Tokens,
-			cost,
 		)
 
 		if err != nil {
