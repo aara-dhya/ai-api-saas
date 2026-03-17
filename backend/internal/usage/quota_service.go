@@ -2,45 +2,41 @@ package usage
 
 import (
 	"database/sql"
-	"time"
 )
 
 type QuotaService struct {
-	db *sql.DB
+	db    *sql.DB
+	limit int // monthly token limit
 }
 
 func NewQuotaService(db *sql.DB) *QuotaService {
 	return &QuotaService{
-		db: db,
+		db:    db,
+		limit: 1000000, // 🔥 set high for testing (1M tokens)
 	}
 }
 
-// CheckQuota verifies whether the API key has remaining quota for the current month.
+// CheckQuota returns whether the API key is within its monthly quota
 func (q *QuotaService) CheckQuota(apiKeyID string) (bool, error) {
 
-	// get start of current month
-	now := time.Now()
-	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
-
-	var usedTokens int
+	var used int
 
 	err := q.db.QueryRow(
-		`SELECT COALESCE(SUM(tokens),0)
+		`SELECT COALESCE(SUM(tokens_used), 0)
 		 FROM usage_logs
 		 WHERE api_key_id = $1
-		 AND created_at >= $2`,
+		 AND date_trunc('month', created_at) = date_trunc('month', NOW())`,
 		apiKeyID,
-		startOfMonth,
-	).Scan(&usedTokens)
+	).Scan(&used)
 
 	if err != nil {
 		return false, err
 	}
 
-	// simple static quota (can later come from plans table)
-	const monthlyQuota = 100000
+	// DEBUG (you can remove later)
+	// fmt.Println("Quota check:", apiKeyID, "used:", used, "limit:", q.limit)
 
-	if usedTokens >= monthlyQuota {
+	if used >= q.limit {
 		return false, nil
 	}
 
