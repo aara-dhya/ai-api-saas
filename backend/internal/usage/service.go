@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"ai-api-saas/internal/billing"
 	"database/sql"
 )
 
@@ -20,7 +21,7 @@ func NewService(db *sql.DB) *Service {
 
 func (s *Service) LogUsage(apiKeyID, model string, tokens int) error {
 
-	cost := calculateCost(model, tokens)
+	cost := billing.CalculateCost(model, tokens)
 
 	_, err := s.db.Exec(
 		`INSERT INTO usage_logs (api_key_id, endpoint, tokens_used, cost)

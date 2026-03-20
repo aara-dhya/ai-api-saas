@@ -28,6 +28,12 @@ type generateRequest struct {
 
 func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 
+	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	if !ok {
+		http.Error(w, "missing api key", http.StatusUnauthorized)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -52,8 +58,14 @@ func (h *Handler) Generate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// AFTER successful response
+	err = h.usageService.LogUsage(apiKeyID, resp.Model, resp.Tokens)
+	if err != nil {
+		// log it, but DO NOT break response
+	}
+
 	// Get API key ID from middleware
-	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	apiKeyID, ok = r.Context().Value(middleware.APIKeyIDKey).(string)
 
 	if ok && resp.Tokens > 0 {
 
