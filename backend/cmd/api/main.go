@@ -35,7 +35,8 @@ func main() {
 	// middleware
 	auth := middleware.NewAPIKeyAuth(db)
 	rateLimiter := middleware.NewRateLimiter(10, time.Minute)
-	quotaMiddleware := middleware.NewQuotaMiddleware()
+	quotaService := usage.NewQuotaService(db)
+	quotaMiddleware := middleware.NewQuotaMiddleware(quotaService.CheckQuota)
 
 	// AI provider
 	groqProvider := ai.NewGroqProvider(cfg.GroqAPIKey)

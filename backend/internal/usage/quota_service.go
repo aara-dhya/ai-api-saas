@@ -2,6 +2,12 @@ package usage
 
 import (
 	"database/sql"
+	"fmt"
+)
+
+const (
+	DailyTokenLimit   = 10000
+	MonthlyTokenLimit = 1000000
 )
 
 type QuotaService struct {
@@ -17,28 +23,46 @@ func NewQuotaService(db *sql.DB) *QuotaService {
 }
 
 // CheckQuota returns whether the API key is within its monthly quota
-func (q *QuotaService) CheckQuota(apiKeyID string) (bool, error) {
+func (q *QuotaService) CheckQuota(apiKeyID string) error {
 
-	var used int
+	var dailyUsed int
+	var monthlyUsed int
 
+	// ---- DAILY ----
 	err := q.db.QueryRow(
 		`SELECT COALESCE(SUM(tokens_used), 0)
 		 FROM usage_logs
 		 WHERE api_key_id = $1
-		 AND date_trunc('month', created_at) = date_trunc('month', NOW())`,
+		 AND created_at >= CURRENT_DATE
+		 AND created_at < CURRENT_DATE + INTERVAL '1 day'`,
 		apiKeyID,
-	).Scan(&used)
+	).Scan(&dailyUsed)
 
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	// DEBUG (you can remove later)
-	// fmt.Println("Quota check:", apiKeyID, "used:", used, "limit:", q.limit)
-
-	if used >= q.limit {
-		return false, nil
+	if dailyUsed >= DailyTokenLimit {
+		return fmt.Errorf("daily quota exceeded")
 	}
 
-	return true, nil
+	// ---- MONTHLY ----
+	err = q.db.QueryRow(
+		`SELECT COALESCE(SUM(tokens_used), 0)
+		 FROM usage_logs
+		 WHERE api_key_id = $1
+		 AND created_at >= date_trunc('month', NOW())
+		 AND created_at < date_trunc('month', NOW()) + INTERVAL '1 month'`,
+		apiKeyID,
+	).Scan(&monthlyUsed)
+
+	if err != nil {
+		return err
+	}
+
+	if monthlyUsed >= MonthlyTokenLimit {
+		return fmt.Errorf("monthly quota exceeded")
+	}
+
+	return nil
 }

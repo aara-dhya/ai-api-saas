@@ -36,19 +36,6 @@ func (s *Service) LogUsage(apiKeyID, model string, tokens int) error {
 }
 
 // ----------------------
-// COST CALCULATION
-// ----------------------
-
-func calculateCost(model string, tokens int) float64 {
-	switch model {
-	case "llama-3.1-8b-instant":
-		return float64(tokens) * 0.0000002
-	default:
-		return 0
-	}
-}
-
-// ----------------------
 // USAGE SUMMARY
 // ----------------------
 
@@ -70,7 +57,8 @@ func (s *Service) UsageSummary(apiKeyID string) (*UsageSummary, error) {
 			COALESCE(SUM(cost), 0)
 		FROM usage_logs
 		WHERE api_key_id = $1
-		AND DATE(created_at) = CURRENT_DATE`,
+		AND created_at >= CURRENT_DATE
+		AND created_at < CURRENT_DATE + INTERVAL '1 day'`,
 		apiKeyID,
 	).Scan(&summary.TokensToday, &summary.CostToday)
 
@@ -85,7 +73,8 @@ func (s *Service) UsageSummary(apiKeyID string) (*UsageSummary, error) {
 			COALESCE(SUM(cost), 0)
 		FROM usage_logs
 		WHERE api_key_id = $1
-		AND date_trunc('month', created_at) = date_trunc('month', NOW())`,
+		AND created_at >= date_trunc('month', NOW())
+		AND created_at < date_trunc('month', NOW()) + INTERVAL '1 month'`,
 		apiKeyID,
 	).Scan(&summary.TokensMonth, &summary.CostMonth)
 

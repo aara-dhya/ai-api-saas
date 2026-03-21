@@ -1,25 +1,18 @@
 package middleware
 
-import (
-	"fmt"
-	"net/http"
-)
+import "net/http"
 
-// QuotaMiddleware temporarily bypasses quota for testing
 type QuotaMiddleware struct {
-	// quotaService *usage.QuotaService
-	// We keep it here for later real implementation
+	checkQuota func(apiKeyID string) error
 }
 
-func NewQuotaMiddleware( /*qs *usage.QuotaService*/ ) *QuotaMiddleware {
+func NewQuotaMiddleware(check func(string) error) *QuotaMiddleware {
 	return &QuotaMiddleware{
-		// quotaService: qs,
+		checkQuota: check,
 	}
 }
 
-// Middleware bypasses quota check for testing
 func (q *QuotaMiddleware) Middleware(next http.Handler) http.Handler {
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		apiKeyID, ok := r.Context().Value(APIKeyIDKey).(string)
@@ -28,10 +21,12 @@ func (q *QuotaMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// TEMPORARY: bypass quota for testing
-		fmt.Println("Quota check bypassed for API key:", apiKeyID)
+		err := q.checkQuota(apiKeyID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
 
-		// proceed to next handler
 		next.ServeHTTP(w, r)
 	})
 }
