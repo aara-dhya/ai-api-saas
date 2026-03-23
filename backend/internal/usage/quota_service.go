@@ -28,8 +28,24 @@ func (q *QuotaService) CheckQuota(apiKeyID string) error {
 	var dailyUsed int
 	var monthlyUsed int
 
-	// ---- DAILY ----
+	var dailyLimit int
+	var monthlyLimit int
+
+	// ---- FETCH PLAN LIMITS ----
 	err := q.db.QueryRow(
+		`SELECT p.daily_token_limit, p.monthly_token_limit
+		 FROM api_keys ak
+		 JOIN plans p ON ak.plan_id = p.id
+		 WHERE ak.id = $1`,
+		apiKeyID,
+	).Scan(&dailyLimit, &monthlyLimit)
+
+	if err != nil {
+		return err
+	}
+
+	// ---- DAILY USAGE ----
+	err = q.db.QueryRow(
 		`SELECT COALESCE(SUM(tokens_used), 0)
 		 FROM usage_logs
 		 WHERE api_key_id = $1
@@ -42,11 +58,11 @@ func (q *QuotaService) CheckQuota(apiKeyID string) error {
 		return err
 	}
 
-	if dailyUsed >= DailyTokenLimit {
+	if dailyUsed >= dailyLimit {
 		return fmt.Errorf("daily quota exceeded")
 	}
 
-	// ---- MONTHLY ----
+	// ---- MONTHLY USAGE ----
 	err = q.db.QueryRow(
 		`SELECT COALESCE(SUM(tokens_used), 0)
 		 FROM usage_logs
@@ -60,7 +76,7 @@ func (q *QuotaService) CheckQuota(apiKeyID string) error {
 		return err
 	}
 
-	if monthlyUsed >= MonthlyTokenLimit {
+	if monthlyUsed >= monthlyLimit {
 		return fmt.Errorf("monthly quota exceeded")
 	}
 
