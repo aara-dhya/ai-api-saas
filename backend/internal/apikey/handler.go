@@ -100,3 +100,37 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 		"message": "plan updated",
 	})
 }
+
+func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
+
+	rows, err := h.service.db.Query(
+		`SELECT ak.id, ak.key, p.name
+		 FROM api_keys ak
+		 JOIN plans p ON ak.plan_id = p.id`,
+	)
+	if err != nil {
+		http.Error(w, "failed to fetch api keys", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type response struct {
+		ID   string `json:"id"`
+		Key  string `json:"key"`
+		Plan string `json:"plan"`
+	}
+
+	var result []response
+
+	for rows.Next() {
+		var r response
+		if err := rows.Scan(&r.ID, &r.Key, &r.Plan); err != nil {
+			http.Error(w, "failed to parse data", http.StatusInternalServerError)
+			return
+		}
+		result = append(result, r)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}

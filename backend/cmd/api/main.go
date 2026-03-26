@@ -54,7 +54,16 @@ func main() {
 	})
 
 	// public route
-	http.HandleFunc("/api/keys", apiKeyHandler.CreateAPIKey)
+	http.HandleFunc("/api/keys", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			apiKeyHandler.CreateAPIKey(w, r)
+		case http.MethodGet:
+			apiKeyHandler.ListAPIKeys(w, r)
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	// usage endpoint (protected)
 	http.Handle(
