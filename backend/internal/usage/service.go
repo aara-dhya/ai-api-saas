@@ -5,6 +5,11 @@ import (
 	"database/sql"
 )
 
+type DailyUsage struct {
+	Date   string `json:"date"`
+	Tokens int    `json:"tokens"`
+}
+
 type Service struct {
 	db *sql.DB
 }
@@ -40,10 +45,11 @@ func (s *Service) LogUsage(apiKeyID, model string, tokens int) error {
 // ----------------------
 
 type UsageSummary struct {
-	TokensToday int     `json:"tokens_today"`
-	CostToday   float64 `json:"cost_today"`
-	TokensMonth int     `json:"tokens_month"`
-	CostMonth   float64 `json:"cost_month"`
+	TokensToday int          `json:"tokens_today"`
+	CostToday   float64      `json:"cost_today"`
+	TokensMonth int          `json:"tokens_month"`
+	CostMonth   float64      `json:"cost_month"`
+	Daily       []DailyUsage `json:"daily"`
 }
 
 func (s *Service) UsageSummary(apiKeyID string) (*UsageSummary, error) {
@@ -79,6 +85,35 @@ func (s *Service) UsageSummary(apiKeyID string) (*UsageSummary, error) {
 	).Scan(&summary.TokensMonth, &summary.CostMonth)
 
 	if err != nil {
+		return nil, err
+	}
+
+	// ---- LAST 7 DAYS ----
+	rows, err := s.db.Query(
+		`SELECT 
+			DATE(created_at) as day,
+			COALESCE(SUM(tokens_used), 0)
+		FROM usage_logs
+		WHERE api_key_id = $1
+		AND created_at >= CURRENT_DATE - INTERVAL '7 days'
+		GROUP BY day
+		ORDER BY day`,
+		apiKeyID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var d DailyUsage
+		if err := rows.Scan(&d.Date, &d.Tokens); err != nil {
+			return nil, err
+		}
+		summary.Daily = append(summary.Daily, d)
+	}
+
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
