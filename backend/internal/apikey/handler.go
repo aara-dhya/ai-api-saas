@@ -103,10 +103,18 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 
+	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	if !ok {
+		http.Error(w, "missing api key", http.StatusUnauthorized)
+		return
+	}
+
 	rows, err := h.service.db.Query(
 		`SELECT ak.id, ak.key, p.name
-		 FROM api_keys ak
-		 JOIN plans p ON ak.plan_id = p.id`,
+		FROM api_keys ak
+		JOIN plans p ON ak.plan_id = p.id
+		WHERE ak.id = $1`,
+		apiKeyID,
 	)
 	if err != nil {
 		http.Error(w, "failed to fetch api keys", http.StatusInternalServerError)
