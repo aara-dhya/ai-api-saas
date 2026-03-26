@@ -2,6 +2,14 @@ package usage
 
 import "database/sql"
 
+type UsageSummary struct {
+	TokensToday int          `json:"tokens_today"`
+	CostToday   float64      `json:"cost_today"`
+	TokensMonth int          `json:"tokens_month"`
+	CostMonth   float64      `json:"cost_month"`
+	Daily       []DailyUsage `json:"daily"`
+}
+
 type QueryService struct {
 	db *sql.DB
 }
