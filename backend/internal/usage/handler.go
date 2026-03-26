@@ -8,11 +8,15 @@ import (
 )
 
 type Handler struct {
-	service *Service
+	service      *Service
+	queryService *QueryService
 }
 
-func NewHandler(s *Service) *Handler {
-	return &Handler{service: s}
+func NewHandler(s *Service, qs *QueryService) *Handler {
+	return &Handler{
+		service:      s,
+		queryService: qs,
+	}
 }
 
 func (h *Handler) GetUsage(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +27,7 @@ func (h *Handler) GetUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	summary, err := h.service.UsageSummary(apiKeyID)
+	summary, err := h.queryService.UsageSummary(apiKeyID)
 	if err != nil {
 		http.Error(w, "failed to fetch usage", http.StatusInternalServerError)
 		return

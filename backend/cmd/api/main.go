@@ -26,11 +26,12 @@ func main() {
 	// services
 	apiKeyService := apikey.NewService(db)
 	usageService := usage.NewService(db)
+	usageQueryService := usage.NewQueryService(db)
 	// quotaService := usage.NewQuotaService(db)
 
 	// handlers
 	apiKeyHandler := apikey.NewHandler(apiKeyService)
-	usageHandler := usage.NewHandler(usageService)
+	usageHandler := usage.NewHandler(usageService, usageQueryService)
 
 	// middleware
 	auth := middleware.NewAPIKeyAuth(db)
