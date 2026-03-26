@@ -70,11 +70,22 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.service.db.Exec(
-		`UPDATE api_keys
-		 SET plan_id = (SELECT id FROM plans WHERE name = $1)
-		 WHERE id = $2`,
+	// ✅ validate plan exists
+	var planID int
+	err = h.service.db.QueryRow(
+		`SELECT id FROM plans WHERE name = $1`,
 		req.Plan,
+	).Scan(&planID)
+
+	if err != nil {
+		http.Error(w, "invalid plan", http.StatusBadRequest)
+		return
+	}
+
+	// ✅ update safely
+	_, err = h.service.db.Exec(
+		`UPDATE api_keys SET plan_id = $1 WHERE id = $2`,
+		planID,
 		apiKeyID,
 	)
 
@@ -83,6 +94,9 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("plan updated"))
+	// ✅ proper response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "plan updated",
+	})
 }
