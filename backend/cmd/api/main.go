@@ -64,6 +64,11 @@ func main() {
 		),
 	)
 
+	http.Handle(
+		"/api/keys/upgrade",
+		auth.Middleware(http.HandlerFunc(apiKeyHandler.UpgradePlan)),
+	)
+
 	// AI generation endpoint (protected)
 	aiRoute := auth.Middleware(
 		rateLimiter.Middleware(

@@ -1,6 +1,7 @@
 package apikey
 
 import (
+	"ai-api-saas/internal/middleware"
 	"encoding/json"
 	"net/http"
 )
@@ -49,4 +50,39 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
+
+	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	if !ok {
+		http.Error(w, "missing api key", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Plan string `json:"plan"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil || req.Plan == "" {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	_, err = h.service.db.Exec(
+		`UPDATE api_keys
+		 SET plan_id = (SELECT id FROM plans WHERE name = $1)
+		 WHERE id = $2`,
+		req.Plan,
+		apiKeyID,
+	)
+
+	if err != nil {
+		http.Error(w, "failed to upgrade plan", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("plan updated"))
 }
