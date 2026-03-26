@@ -41,8 +41,13 @@ func (s *Service) CreateAPIKey(userID string, name string) (string, error) {
 	hash := hashKey(key)
 
 	query := `
-	INSERT INTO api_keys (user_id, key_hash, name)
-	VALUES ($1, $2, $3)
+	INSERT INTO api_keys (id, user_id, key, plan_id)
+	VALUES (
+		$1,
+		$2,
+		$3,
+		(SELECT id FROM plans WHERE name = 'free')
+	)
 	`
 
 	_, err = s.db.Exec(query, userID, hash, name)
