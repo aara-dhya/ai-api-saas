@@ -109,26 +109,16 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 🔥 Step 1 — get user_id from api key
-	var userID string
-	err := h.service.db.QueryRow(
-		`SELECT user_id FROM api_keys WHERE id = $1`,
-		apiKeyID,
-	).Scan(&userID)
-
-	if err != nil {
-		http.Error(w, "failed to fetch user", http.StatusInternalServerError)
-		return
-	}
-
-	// 🔥 Step 2 — fetch ALL keys for that user
 	rows, err := h.service.db.Query(
 		`SELECT ak.id, ak.key, p.name
-		 FROM api_keys ak
-		 JOIN plans p ON ak.plan_id = p.id
-		 WHERE ak.user_id = $1`,
-		userID,
+		FROM api_keys ak
+		JOIN plans p ON ak.plan_id = p.id
+		WHERE ak.user_id = (
+			SELECT user_id FROM api_keys WHERE id = $1
+		)`,
+		apiKeyID,
 	)
+
 	if err != nil {
 		http.Error(w, "failed to fetch api keys", http.StatusInternalServerError)
 		return
