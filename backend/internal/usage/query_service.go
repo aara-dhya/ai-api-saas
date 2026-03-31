@@ -1,6 +1,25 @@
 package usage
 
-import "database/sql"
+import (
+	"database/sql"
+)
+
+type QueryService struct {
+	db *sql.DB
+}
+
+func NewQueryService(db *sql.DB) *QueryService {
+	return &QueryService{db: db}
+}
+
+// ----------------------
+// TYPES
+// ----------------------
+
+type DailyUsage struct {
+	Date   string `json:"date"`
+	Tokens int    `json:"tokens"`
+}
 
 type UsageSummary struct {
 	TokensToday int          `json:"tokens_today"`
@@ -10,13 +29,9 @@ type UsageSummary struct {
 	Daily       []DailyUsage `json:"daily"`
 }
 
-type QueryService struct {
-	db *sql.DB
-}
-
-func NewQueryService(db *sql.DB) *QueryService {
-	return &QueryService{db: db}
-}
+// ----------------------
+// USAGE SUMMARY (READ ONLY)
+// ----------------------
 
 func (q *QueryService) UsageSummary(apiKeyID string) (*UsageSummary, error) {
 

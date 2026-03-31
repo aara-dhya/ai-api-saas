@@ -10,6 +10,14 @@ type Handler struct {
 	service *Service
 }
 
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
+}
+
+// ----------------------
+// HELPERS
+// ----------------------
+
 func maskAPIKey(key string) string {
 	if len(key) <= 8 {
 		return "****"
@@ -17,9 +25,9 @@ func maskAPIKey(key string) string {
 	return key[:4] + "****" + key[len(key)-4:]
 }
 
-func NewHandler(service *Service) *Handler {
-	return &Handler{service: service}
-}
+// ----------------------
+// CREATE API KEY
+// ----------------------
 
 type createKeyRequest struct {
 	Name string `json:"name"`
@@ -31,38 +39,54 @@ type createKeyResponse struct {
 
 func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
-	userID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
-	if !ok {
-		http.Error(w, "missing user identity", http.StatusUnauthorized)
-		return
-	}
-
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	var req createKeyRequest
+	// 🔐 Get API key from context
+	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	if !ok {
+		http.Error(w, "missing api key", http.StatusUnauthorized)
+		return
+	}
 
-	err := json.NewDecoder(r.Body).Decode(&req)
+	// 🔐 Resolve actual user_id
+	var userID string
+	err := h.service.db.QueryRow(
+		`SELECT user_id FROM api_keys WHERE id = $1`,
+		apiKeyID,
+	).Scan(&userID)
+
 	if err != nil {
+		http.Error(w, "failed to fetch user", http.StatusInternalServerError)
+		return
+	}
+
+	var req createKeyRequest
+	err = json.NewDecoder(r.Body).Decode(&req)
+	if err != nil || req.Name == "" {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
 	key, err := h.service.CreateAPIKey(userID, req.Name)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "failed to create api key", http.StatusInternalServerError)
 		return
 	}
 
 	resp := createKeyResponse{
-		APIKey: key,
+		APIKey: key, // only time we return full key
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
+
+// ----------------------
+// UPGRADE PLAN
+// ----------------------
 
 func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 
@@ -82,7 +106,7 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ validate plan exists
+	// validate plan exists
 	var planID int
 	err = h.service.db.QueryRow(
 		`SELECT id FROM plans WHERE name = $1`,
@@ -94,7 +118,6 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ update safely
 	_, err = h.service.db.Exec(
 		`UPDATE api_keys SET plan_id = $1 WHERE id = $2`,
 		planID,
@@ -106,12 +129,15 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ proper response
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": "plan updated",
 	})
 }
+
+// ----------------------
+// LIST API KEYS
+// ----------------------
 
 func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 
@@ -123,14 +149,13 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := h.service.db.Query(
 		`SELECT ak.id, ak.key, p.name
-		FROM api_keys ak
-		JOIN plans p ON ak.plan_id = p.id
-		WHERE ak.user_id = (
-			SELECT user_id FROM api_keys WHERE id = $1
-		)`,
+		 FROM api_keys ak
+		 JOIN plans p ON ak.plan_id = p.id
+		 WHERE ak.user_id = (
+			 SELECT user_id FROM api_keys WHERE id = $1
+		 )`,
 		apiKeyID,
 	)
-
 	if err != nil {
 		http.Error(w, "failed to fetch api keys", http.StatusInternalServerError)
 		return
@@ -152,7 +177,7 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 🔥 MASK THE KEY
+		// 🔐 mask key
 		r.Key = maskAPIKey(r.Key)
 
 		result = append(result, r)

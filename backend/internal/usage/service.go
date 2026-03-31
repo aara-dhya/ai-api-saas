@@ -5,11 +5,6 @@ import (
 	"database/sql"
 )
 
-type DailyUsage struct {
-	Date   string `json:"date"`
-	Tokens int    `json:"tokens"`
-}
-
 type Service struct {
 	db *sql.DB
 }
