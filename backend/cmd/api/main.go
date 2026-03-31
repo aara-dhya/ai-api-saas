@@ -23,55 +23,59 @@ func main() {
 
 	db := database.NewPostgres(cfg.DatabaseURL)
 
-	// services
+	// ----------------------
+	// SERVICES
+	// ----------------------
+
 	apiKeyService := apikey.NewService(db)
-	usageService := usage.NewService(db)
-	usageQueryService := usage.NewQueryService(db)
-	// quotaService := usage.NewQuotaService(db)
 
-	// handlers
+	usageService := usage.NewService(db)      // writes
+	queryService := usage.NewQueryService(db) // reads
+	quotaService := usage.NewQuotaService(db) // quota
+
+	// ----------------------
+	// HANDLERS
+	// ----------------------
+
 	apiKeyHandler := apikey.NewHandler(apiKeyService)
-	usageHandler := usage.NewHandler(usageService, usageQueryService)
+	usageHandler := usage.NewHandler(usageService, queryService)
 
-	// middleware
+	// ----------------------
+	// MIDDLEWARE
+	// ----------------------
+
 	auth := middleware.NewAPIKeyAuth(db)
 	rateLimiter := middleware.NewRateLimiter(10, time.Minute)
-	quotaService := usage.NewQuotaService(db)
 	quotaMiddleware := middleware.NewQuotaMiddleware(quotaService.CheckQuota)
+	// ----------------------
+	// AI PROVIDER
+	// ----------------------
 
-	// AI provider
 	groqProvider := ai.NewGroqProvider(cfg.GroqAPIKey)
 
-	// AI router
 	router := ai.NewRouter()
 	router.Register("llama-3.1-8b-instant", groqProvider)
 
-	// AI handler
 	aiHandler := ai.NewHandler(router, usageService)
 
-	// health check
+	// ----------------------
+	// ROUTES
+	// ----------------------
+
+	// health
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "API running on port", cfg.Port)
 	})
 
-	// public route
-	http.HandleFunc("/api/keys", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			apiKeyHandler.CreateAPIKey(w, r)
-		case http.MethodGet:
-			apiKeyHandler.ListAPIKeys(w, r)
-		default:
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-
-	// usage endpoint (protected)
+	// 🔐 API KEY ROUTES (protected)
 	http.Handle(
-		"/api/usage",
-		auth.Middleware(
-			http.HandlerFunc(usageHandler.GetUsage),
-		),
+		"/api/keys",
+		auth.Middleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)),
+	)
+
+	http.Handle(
+		"/api/keys/list",
+		auth.Middleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)),
 	)
 
 	http.Handle(
@@ -79,7 +83,13 @@ func main() {
 		auth.Middleware(http.HandlerFunc(apiKeyHandler.UpgradePlan)),
 	)
 
-	// AI generation endpoint (protected)
+	// 🔐 USAGE
+	http.Handle(
+		"/api/usage",
+		auth.Middleware(http.HandlerFunc(usageHandler.GetUsage)),
+	)
+
+	// 🔐 AI GENERATION
 	aiRoute := auth.Middleware(
 		rateLimiter.Middleware(
 			quotaMiddleware.Middleware(
@@ -89,6 +99,8 @@ func main() {
 	)
 
 	http.Handle("/v1/generate", aiRoute)
+
+	// ----------------------
 
 	fmt.Println("Server running on port", cfg.Port)
 

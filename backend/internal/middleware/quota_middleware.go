@@ -1,18 +1,21 @@
 package middleware
 
-import "net/http"
+import (
+	"net/http"
+)
 
 type QuotaMiddleware struct {
-	checkQuota func(apiKeyID string) error
+	checkQuota func(string) (bool, error)
 }
 
-func NewQuotaMiddleware(check func(string) error) *QuotaMiddleware {
+func NewQuotaMiddleware(check func(string) (bool, error)) *QuotaMiddleware {
 	return &QuotaMiddleware{
 		checkQuota: check,
 	}
 }
 
 func (q *QuotaMiddleware) Middleware(next http.Handler) http.Handler {
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		apiKeyID, ok := r.Context().Value(APIKeyIDKey).(string)
@@ -21,9 +24,14 @@ func (q *QuotaMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		err := q.checkQuota(apiKeyID)
+		allowed, err := q.checkQuota(apiKeyID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusForbidden)
+			http.Error(w, "quota check failed", http.StatusInternalServerError)
+			return
+		}
+
+		if !allowed {
+			http.Error(w, "quota exceeded", http.StatusForbidden)
 			return
 		}
 
