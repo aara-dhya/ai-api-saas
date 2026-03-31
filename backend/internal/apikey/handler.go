@@ -10,6 +10,13 @@ type Handler struct {
 	service *Service
 }
 
+func maskAPIKey(key string) string {
+	if len(key) <= 8 {
+		return "****"
+	}
+	return key[:4] + "****" + key[len(key)-4:]
+}
+
 func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
@@ -139,6 +146,10 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "failed to parse data", http.StatusInternalServerError)
 			return
 		}
+
+		// 🔥 MASK THE KEY
+		r.Key = maskAPIKey(r.Key)
+
 		result = append(result, r)
 	}
 
