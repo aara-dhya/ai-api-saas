@@ -1,10 +1,9 @@
 package usage
 
 import (
+	"ai-api-saas/internal/middleware"
 	"encoding/json"
 	"net/http"
-
-	"ai-api-saas/internal/middleware"
 )
 
 type Handler struct {
@@ -18,6 +17,10 @@ func NewHandler(s *Service, qs *QueryService) *Handler {
 		queryService: qs,
 	}
 }
+
+// ----------------------
+// GET USAGE (READ)
+// ----------------------
 
 func (h *Handler) GetUsage(w http.ResponseWriter, r *http.Request) {
 
