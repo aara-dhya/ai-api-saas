@@ -22,8 +22,7 @@ func NewHandler(service *Service) *Handler {
 }
 
 type createKeyRequest struct {
-	UserID string `json:"user_id"`
-	Name   string `json:"name"`
+	Name string `json:"name"`
 }
 
 type createKeyResponse struct {
@@ -31,6 +30,12 @@ type createKeyResponse struct {
 }
 
 func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
+
+	userID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	if !ok {
+		http.Error(w, "missing user identity", http.StatusUnauthorized)
+		return
+	}
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -45,7 +50,7 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	key, err := h.service.CreateAPIKey(req.UserID, req.Name)
+	key, err := h.service.CreateAPIKey(userID, req.Name)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
