@@ -3,8 +3,6 @@ package auth
 import (
 	"database/sql"
 	"errors"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 type Service struct {
@@ -21,15 +19,9 @@ func NewService(db *sql.DB) *Service {
 
 func (s *Service) Signup(email, password string) (string, error) {
 
-	// hash password
-	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return "", err
-	}
-
 	var userID string
 
-	err = s.db.QueryRow(
+	err := s.db.QueryRow(
 		`INSERT INTO users (email)
 		 VALUES ($1)
 		 RETURNING id`,
@@ -39,8 +31,6 @@ func (s *Service) Signup(email, password string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	// ⚠️ password not stored yet (we’ll fix next step)
 
 	return userID, nil
 }
