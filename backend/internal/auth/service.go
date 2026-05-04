@@ -51,11 +51,12 @@ func (s *Service) Signup(email, password string) (string, error) {
 func (s *Service) Login(email, password string) (string, error) {
 
 	var userID string
+	var hashedPassword string
 
 	err := s.db.QueryRow(
-		`SELECT id FROM users WHERE email = $1`,
+		`SELECT id, password FROM users WHERE email = $1`,
 		email,
-	).Scan(&userID)
+	).Scan(&userID, &hashedPassword)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -64,7 +65,11 @@ func (s *Service) Login(email, password string) (string, error) {
 		return "", err
 	}
 
-	// ⚠️ password check missing (next step)
+	// compare password
+	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	if err != nil {
+		return "", errors.New("invalid credentials")
+	}
 
 	return userID, nil
 }
