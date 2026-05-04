@@ -65,11 +65,17 @@ func (s *Service) Login(email, password string) (string, error) {
 		return "", err
 	}
 
-	// compare password
+	// verify password
 	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 	if err != nil {
 		return "", errors.New("invalid credentials")
 	}
 
-	return userID, nil
+	// 🔥 generate JWT
+	token, err := GenerateToken(userID)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
 }
