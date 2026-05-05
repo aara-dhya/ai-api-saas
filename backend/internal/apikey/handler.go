@@ -44,27 +44,14 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 🔐 Get API key from context
-	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "missing api key", http.StatusUnauthorized)
-		return
-	}
-
-	// 🔐 Resolve actual user_id
-	var userID string
-	err := h.service.db.QueryRow(
-		`SELECT user_id FROM api_keys WHERE id = $1`,
-		apiKeyID,
-	).Scan(&userID)
-
-	if err != nil {
-		http.Error(w, "failed to fetch user", http.StatusInternalServerError)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var req createKeyRequest
-	err = json.NewDecoder(r.Body).Decode(&req)
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil || req.Name == "" {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
@@ -76,12 +63,9 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := createKeyResponse{
-		APIKey: key, // only time we return full key
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(createKeyResponse{
+		APIKey: key,
+	})
 }
 
 // ----------------------
@@ -90,14 +74,15 @@ func (h *Handler) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 
-	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "missing api key", http.StatusUnauthorized)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var req struct {
-		Plan string `json:"plan"`
+		KeyID string `json:"key_id"`
+		Plan  string `json:"plan"`
 	}
 
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -119,9 +104,10 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err = h.service.db.Exec(
-		`UPDATE api_keys SET plan_id = $1 WHERE id = $2`,
+		`UPDATE api_keys SET plan_id = $1 WHERE id = $2 AND user_id = $3`,
 		planID,
-		apiKeyID,
+		req.KeyID,
+		userID,
 	)
 
 	if err != nil {
@@ -141,9 +127,9 @@ func (h *Handler) UpgradePlan(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 
-	apiKeyID, ok := r.Context().Value(middleware.APIKeyIDKey).(string)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "missing api key", http.StatusUnauthorized)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -151,10 +137,8 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 		`SELECT ak.id, ak.key, p.name
 		 FROM api_keys ak
 		 JOIN plans p ON ak.plan_id = p.id
-		 WHERE ak.user_id = (
-			 SELECT user_id FROM api_keys WHERE id = $1
-		 )`,
-		apiKeyID,
+		 WHERE ak.user_id = $1`,
+		userID,
 	)
 	if err != nil {
 		http.Error(w, "failed to fetch api keys", http.StatusInternalServerError)
@@ -177,17 +161,9 @@ func (h *Handler) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// 🔐 mask key
 		r.Key = maskAPIKey(r.Key)
-
 		result = append(result, r)
 	}
 
-	if err := rows.Err(); err != nil {
-		http.Error(w, "failed during iteration", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }

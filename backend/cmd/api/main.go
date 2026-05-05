@@ -9,6 +9,7 @@ import (
 
 	"ai-api-saas/internal/ai"
 	"ai-api-saas/internal/apikey"
+	"ai-api-saas/internal/auth"
 	"ai-api-saas/internal/middleware"
 	"ai-api-saas/internal/usage"
 	"ai-api-saas/pkg/config"
@@ -32,6 +33,9 @@ func main() {
 	usageService := usage.NewService(db)      // writes
 	queryService := usage.NewQueryService(db) // reads
 	quotaService := usage.NewQuotaService(db) // quota
+
+	authService := auth.NewService(db)
+	authHandler := auth.NewHandler(authService)
 
 	// ----------------------
 	// HANDLERS
@@ -61,6 +65,14 @@ func main() {
 	// ----------------------
 	// ROUTES
 	// ----------------------
+
+	// public auth routes
+	http.HandleFunc("/auth/signup", authHandler.Signup)
+	http.HandleFunc("/auth/login", authHandler.Login)
+
+	http.Handle("/api/keys", middleware.AuthMiddleware(http.HandlerFunc(apiKeyHandler.CreateAPIKey)))
+	http.Handle("/api/keys/list", middleware.AuthMiddleware(http.HandlerFunc(apiKeyHandler.ListAPIKeys)))
+	http.Handle("/api/keys/upgrade", middleware.AuthMiddleware(http.HandlerFunc(apiKeyHandler.UpgradePlan)))
 
 	// health
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
