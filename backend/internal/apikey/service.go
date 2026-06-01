@@ -5,17 +5,26 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Service struct {
 	db *sql.DB
 }
 
+func getKeyPrefix(key string) string {
+	if len(key) < 12 {
+		return key
+	}
+	return key[:12]
+}
+
 func NewService(db *sql.DB) *Service {
 	return &Service{db: db}
 }
 
-func generateKey() (string, error) {
+func generateAPIKey() (string, error) {
 	bytes := make([]byte, 32)
 
 	_, err := rand.Read(bytes)
@@ -23,7 +32,7 @@ func generateKey() (string, error) {
 		return "", err
 	}
 
-	return "sk_" + hex.EncodeToString(bytes), nil
+	return "sk_live_" + hex.EncodeToString(bytes), nil
 }
 
 func hashKey(key string) string {
@@ -33,27 +42,53 @@ func hashKey(key string) string {
 
 func (s *Service) CreateAPIKey(userID string, name string) (string, error) {
 
-	key, err := generateKey()
+	// generate raw API key
+	rawKey, err := generateAPIKey()
 	if err != nil {
 		return "", err
 	}
 
-	hash := hashKey(key)
+	// hash API key
+	hashedKey, err := bcrypt.GenerateFromPassword(
+		[]byte(rawKey),
+		bcrypt.DefaultCost,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	// extract prefix
+	prefix := getKeyPrefix(rawKey)
 
 	query := `
-	INSERT INTO api_keys (id, user_id, key, plan_id)
+	INSERT INTO api_keys (
+		user_id,
+		name,
+		key,
+		key_prefix,
+		plan_id
+	)
 	VALUES (
 		$1,
 		$2,
 		$3,
+		$4,
 		(SELECT id FROM plans WHERE name = 'free')
 	)
 	`
 
-	_, err = s.db.Exec(query, userID, hash, name)
+	_, err = s.db.Exec(
+		query,
+		userID,
+		name,
+		string(hashedKey),
+		prefix,
+	)
+
 	if err != nil {
 		return "", err
 	}
 
-	return key, nil
+	// return RAW key only once
+	return rawKey, nil
 }
