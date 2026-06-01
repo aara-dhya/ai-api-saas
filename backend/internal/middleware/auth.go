@@ -10,8 +10,6 @@ import (
 
 var jwtSecret = []byte("supersecretkey")
 
-type contextKey string
-
 const UserIDKey contextKey = "user_id"
 
 func AuthMiddleware(next http.Handler) http.Handler {
